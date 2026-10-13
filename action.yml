@@ -1,5 +1,5 @@
 name: deployhealth env check
-description: Report env var drift (missing, unused, mismatched) to deployhealth on every push. Names and line numbers only, never values.
+description: "Report env var drift to deployhealth on every push: missing, unused and mismatched names, never values."
 author: Utsav Mishra
 branding:
   icon: shield
