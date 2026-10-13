@@ -1,0 +1,70 @@
+name: deployhealth env check
+description: "Report env var drift to deployhealth on every push: missing, unused and mismatched names, never values."
+author: Utsav Mishra
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  token:
+    description: >-
+      The deployhealth project's ingest token. Store it as the repository secret DEPLOYHEALTH_TOKEN
+      and pass it here. Required unless dry-run is true.
+    required: false
+    default: ''
+  url:
+    description: The deployhealth instance to report to.
+    required: false
+    default: https://deployhealth.dev
+  sha:
+    description: The commit being deployed.
+    required: false
+    default: ${{ github.sha }}
+  branch:
+    description: The branch being deployed.
+    required: false
+    default: ${{ github.ref_name }}
+  dry-run:
+    description: Print the findings in the job log instead of sending them (no token needed). true or false.
+    required: false
+    default: 'false'
+  working-directory:
+    description: The directory to scan, relative to the repository root.
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Scan env vars and report to deployhealth
+      shell: bash
+      # Every input reaches the script through the environment, quoted: nothing is interpolated
+      # into the script, and the token is never on the command line (the CLI reads
+      # DEPLOYHEALTH_TOKEN itself).
+      env:
+        DEPLOYHEALTH_TOKEN: ${{ inputs.token }}
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_SHA: ${{ inputs.sha }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        args=(--dir "$INPUT_WORKING_DIRECTORY" --sha "$INPUT_SHA" --branch "$INPUT_BRANCH")
+        case "$INPUT_DRY_RUN" in
+          true)
+            args+=(--dry-run)
+            ;;
+          false)
+            if [ -z "$DEPLOYHEALTH_TOKEN" ]; then
+              echo "::error title=deployhealth env check::No token. Add the project's ingest token as the repository secret DEPLOYHEALTH_TOKEN (a secret, not a variable) and pass it to this action's token input, or set dry-run: true."
+              exit 1
+            fi
+            args+=(--url "$INPUT_URL")
+            ;;
+          *)
+            echo "::error title=deployhealth env check::dry-run must be true or false."
+            exit 1
+            ;;
+        esac
+        npx --yes deployhealth-scan@0.5.0 "${args[@]}"

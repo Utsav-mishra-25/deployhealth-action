@@ -1,0 +1,43 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # The fixture reads DATABASE_URL and API_KEY and declares only DATABASE_URL: the dry run
+      # prints API_KEY as MISSING. No token is needed and nothing is sent.
+      - name: Dry run on the fixture
+        uses: ./
+        with:
+          dry-run: true
+          working-directory: test/fixture
+
+      # Without dry-run and without a token, the action must fail with a message naming the secret.
+      - name: No token, no dry run
+        id: no-token
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: test/fixture
+
+      - name: That step failed as it should
+        env:
+          OUTCOME: ${{ steps.no-token.outcome }}
+        run: |
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "::error::Expected the run without a token to fail, got $OUTCOME"
+            exit 1
+          fi
